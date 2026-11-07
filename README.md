@@ -1,5 +1,7 @@
 # Sortierknopf (sort button)
 
+> **Now part of [Kaan's QoL](https://github.com/Kaanori/spt-kaansqol)** – this module is included there (with your settings migrated automatically). This stand-alone version is no longer updated.
+
 Adds the sort button that the stash already has to the secure container and backpack as well.
 
 ## How this mod was made (AI disclosure)
@@ -16,7 +18,7 @@ bug, please open an [issue](https://github.com/Kaanori/spt-sortierknopf/issues).
 
 ## Installation
 
-1. Download `Sortierknopf-1.0.0.zip` from the [Releases](https://github.com/Kaanori/spt-sortierknopf/releases) page.
+1. Download `Sortierknopf-1.0.1.zip` from the [Releases](https://github.com/Kaanori/spt-sortierknopf/releases) page.
 2. Extract it **into your SPT game folder** (the folder that contains `EscapeFromTarkov.exe`).
    The ZIP already has the right layout; the mod ends up in `BepInEx/plugins/`.
    On Windows, make sure "Extract All" does not add an extra subfolder.

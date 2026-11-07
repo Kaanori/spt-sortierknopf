@@ -16,6 +16,7 @@
 //  Rucksack darstellt.
 // ---------------------------------------------------------------
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using BepInEx;
 using BepInEx.Configuration;
@@ -29,7 +30,7 @@ using UnityEngine.UI;
 
 namespace Sortierknopf
 {
-	[BepInPlugin("com.kaan.sortierknopf", "Sortierknopf", "1.0.0")]
+	[BepInPlugin("com.kaan.sortierknopf", "Sortierknopf", "1.0.1")]
 	public class Plugin : BaseUnityPlugin
 	{
 		internal static ManualLogSource Log;
@@ -529,6 +530,82 @@ namespace Sortierknopf
 			catch (Exception ex)
 			{
 				Plugin.Log.LogError("Sortierknopf: Raid-Freigabe - " + ex);
+			}
+		}
+	}
+
+	// ---------------------------------------------------------------
+	//  Sortieren im Raid: Gegenstaende bleiben "bekannt"
+	//
+	//  Im Raid ist jeder Behaelter des Spielers durchsuchbar
+	//  (ISearchableContainer). Der Suchstand haengt an Gegenstand UND
+	//  genauer Stelle: ActiveSearchController.IsItemKnown vergleicht den
+	//  gemerkten Platz (_knownItems[item]) mit der aktuellen Adresse.
+	//  Ein gewoehnliches Verschieben (AddResult.RaiseEvents) traegt den
+	//  neuen Platz nach - das Sortieren nicht: ItemManipulator.Sort legt
+	//  die Gegenstaende ueber Grid.AddAnywhere (GridAddResult) neu ab,
+	//  und ApplySortItemsPositionResult.RaiseEvents meldet nur
+	//  Entfernen/Hinzufuegen. Alles, was beim Sortieren den Platz
+	//  wechselt, gilt danach als undurchsucht und wird schraffiert
+	//  gezeigt, bis man "Durchsuchen" drueckt.
+	//
+	//  Das Spiel selbst kennt das Problem nicht, weil es im Raid gar
+	//  nicht sortieren laesst - erst ImRaidPatch oben macht es moeglich.
+	//  Darum hier: Was vor dem Sortieren bekannt war, ist es am neuen
+	//  Platz auch. Laeuft VOR dem Melden der Ereignisse, damit die
+	//  Ansichten gleich als bekannte Gegenstaende entstehen. Ausserhalb
+	//  des Raids ist kein Fach durchsuchbar, dann passiert nichts.
+	// ---------------------------------------------------------------
+	[HarmonyPatch(typeof(ApplySortItemsPositionResult), nameof(ApplySortItemsPositionResult.RaiseEvents))]
+	internal static class SuchstandPatch
+	{
+		[HarmonyPrefix]
+		private static void Vorher(ApplySortItemsPositionResult __instance, CommandStatus status)
+		{
+			try
+			{
+				if (status != CommandStatus.Succeed)
+				{
+					return;
+				}
+				IPlayerSearchController suche = __instance._inventoryController?.SearchController as IPlayerSearchController;
+				if (suche == null || __instance._removeResults == null || __instance._sortResults == null)
+				{
+					return;
+				}
+				Dictionary<Item, ItemAddress> vorher = new Dictionary<Item, ItemAddress>();
+				foreach (ContainerRemoveResult r in __instance._removeResults)
+				{
+					if (r?.Item != null && r.Address != null)
+					{
+						vorher[r.Item] = r.Address;
+					}
+				}
+				int nachgetragen = 0;
+				foreach (GridAddResult a in __instance._sortResults)
+				{
+					Item item = a?.Item;
+					if (item == null || item.Parent == null || !vorher.TryGetValue(item, out ItemAddress alt))
+					{
+						continue;
+					}
+					// Was vorher unbekannt war, bleibt es - Sortieren ist
+					// kein Durchsuchen.
+					if (!suche.IsItemKnown(item, alt) || suche.IsItemKnown(item, item.Parent))
+					{
+						continue;
+					}
+					suche.SetItemAsKnown(item, raiseEvents: false);
+					nachgetragen++;
+				}
+				if (nachgetragen > 0)
+				{
+					Plugin.Log.LogInfo("Sortierknopf: " + nachgetragen + " Gegenstaende nach dem Sortieren als bekannt nachgetragen.");
+				}
+			}
+			catch (Exception ex)
+			{
+				Plugin.Log.LogError("Sortierknopf: Suchstand nach dem Sortieren - " + ex);
 			}
 		}
 	}
